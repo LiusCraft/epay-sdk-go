@@ -4,20 +4,45 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	epay "github.com/liuscraft/epay-sdk-go"
 )
 
+// Order 内存中存储的订单信息
+type Order struct {
+	OutTradeNo string    `json:"out_trade_no"`
+	TradeNo    string    `json:"trade_no"`
+	PayType    string    `json:"pay_type"`
+	Name       string    `json:"name"`
+	Money      float64   `json:"money"`
+	Status     int       `json:"status"` // 0=未支付, 1=已支付
+	CreateTime time.Time `json:"create_time"`
+	PayTime    time.Time `json:"pay_time,omitempty"`
+}
+
+// 内存订单存储
+var (
+	orders     = make(map[string]*Order)
+	ordersLock sync.RWMutex
+)
+
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-var client *epay.Client
+var (
+	client    *epay.Client
+	notifyURL string
+	returnURL string
+)
 
 func init() {
 	// 从环境变量读取配置
@@ -34,6 +59,16 @@ func init() {
 	apiURL := os.Getenv("EPAY_API_URL")
 	if apiURL == "" {
 		apiURL = "https://pay.example.com" // 默认值，仅用于演示
+	}
+
+	notifyURL = os.Getenv("EPAY_NOTIFY_URL")
+	if notifyURL == "" {
+		notifyURL = "http://localhost:8080/api/payment/notify" // 默认值，仅用于演示
+	}
+
+	returnURL = os.Getenv("EPAY_RETURN_URL")
+	if returnURL == "" {
+		returnURL = "http://localhost:8080/payment/success" // 默认值，仅用于演示
 	}
 
 	var err error
@@ -89,8 +124,8 @@ func formPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	htmlForm, err := client.BuildFormPayment(&epay.FormPaymentRequest{
 		Type:       payType, // 为空则显示收银台
 		OutTradeNo: outTradeNo,
-		NotifyURL:  "https://yourdomain.com/api/payment/notify", // 替换为你的回调地址
-		ReturnURL:  "https://yourdomain.com/payment/success",    // 替换为你的跳转地址
+		NotifyURL:  notifyURL,
+		ReturnURL:  returnURL,
 		Name:       name,
 		Money:      money,
 	})
@@ -100,6 +135,18 @@ func formPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("创建表单支付订单: %s, 金额: %.2f", outTradeNo, money)
+
+	// 存储订单到内存
+	ordersLock.Lock()
+	orders[outTradeNo] = &Order{
+		OutTradeNo: outTradeNo,
+		PayType:    payType,
+		Name:       name,
+		Money:      money,
+		Status:     0,
+		CreateTime: time.Now(),
+	}
+	ordersLock.Unlock()
 
 	// 返回 HTML 表单，浏览器会自动提交跳转到支付页面
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -131,8 +178,8 @@ func urlPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	payURL, err := client.BuildFormPaymentURL(&epay.FormPaymentRequest{
 		Type:       payType,
 		OutTradeNo: outTradeNo,
-		NotifyURL:  "https://yourdomain.com/api/payment/notify",
-		ReturnURL:  "https://yourdomain.com/payment/success",
+		NotifyURL:  notifyURL,
+		ReturnURL:  returnURL,
 		Name:       name,
 		Money:      money,
 	})
@@ -142,6 +189,18 @@ func urlPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("创建URL支付订单: %s, 金额: %.2f, URL: %s", outTradeNo, money, payURL)
+
+	// 存储订单到内存
+	ordersLock.Lock()
+	orders[outTradeNo] = &Order{
+		OutTradeNo: outTradeNo,
+		PayType:    payType,
+		Name:       name,
+		Money:      money,
+		Status:     0,
+		CreateTime: time.Now(),
+	}
+	ordersLock.Unlock()
 
 	// 直接跳转到支付页面
 	http.Redirect(w, r, payURL, http.StatusFound)
@@ -166,6 +225,15 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	if notifyData.TradeStatus == "TRADE_SUCCESS" {
 		log.Printf("订单支付成功: %s, 金额: %s", notifyData.OutTradeNo, notifyData.Money)
 
+		// 更新内存中的订单状态
+		ordersLock.Lock()
+		if order, exists := orders[notifyData.OutTradeNo]; exists {
+			order.Status = 1
+			order.PayTime = time.Now()
+			order.TradeNo = notifyData.TradeNo
+		}
+		ordersLock.Unlock()
+
 		// TODO: 在这里处理你的业务逻辑
 		// 1. 检查订单是否已处理（幂等性）
 		// 2. 验证金额是否正确
@@ -175,6 +243,27 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 返回 success 告知 EPay 已收到通知
 	w.Write([]byte("success"))
+}
+
+// listOrdersHandler 获取所有订单列表
+func listOrdersHandler(w http.ResponseWriter, r *http.Request) {
+	ordersLock.RLock()
+	orderList := make([]*Order, 0, len(orders))
+	for _, order := range orders {
+		orderList = append(orderList, order)
+	}
+	ordersLock.RUnlock()
+
+	// 按创建时间倒序排列
+	sort.Slice(orderList, func(i, j int) bool {
+		return orderList[i].CreateTime.After(orderList[j].CreateTime)
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    orderList,
+	})
 }
 
 // returnHandler 支付成功跳转页面
@@ -201,6 +290,7 @@ func main() {
 	http.HandleFunc("/pay/form", formPaymentHandler)
 	http.HandleFunc("/pay/url", urlPaymentHandler)
 	http.HandleFunc("/api/payment/notify", notifyHandler)
+	http.HandleFunc("/api/orders", listOrdersHandler)
 	http.HandleFunc("/payment/success", returnHandler)
 
 	port := os.Getenv("PORT")
@@ -209,7 +299,8 @@ func main() {
 	}
 
 	log.Printf("Form 支付示例服务启动: http://localhost:%s", port)
-	log.Printf("请设置环境变量: EPAY_PID, EPAY_KEY, EPAY_API_URL")
+	log.Printf("请设置环境变量: EPAY_PID, EPAY_KEY, EPAY_API_URL, EPAY_NOTIFY_URL, EPAY_RETURN_URL")
+	log.Printf("当前配置: NotifyURL=%s, ReturnURL=%s", notifyURL, returnURL)
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)

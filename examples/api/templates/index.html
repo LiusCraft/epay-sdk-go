@@ -4,76 +4,149 @@
     <meta charset="UTF-8">
     <title>API 接口支付示例</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 50px auto; padding: 20px; }
         h1 { color: #333; }
+        .container { display: flex; gap: 30px; }
+        .left-panel { flex: 1; }
+        .right-panel { flex: 1; }
         .endpoint { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 5px; }
         .method { display: inline-block; padding: 3px 8px; background: #1890ff; color: white; border-radius: 3px; font-size: 12px; }
         .method.get { background: #52c41a; }
         code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
-        pre { background: #f5f5f5; padding: 15px; overflow-x: auto; }
+        pre { background: #f5f5f5; padding: 15px; overflow-x: auto; font-size: 12px; }
         .test-form { margin-top: 30px; padding: 20px; background: #fafafa; border-radius: 5px; }
         input, select { padding: 8px; margin: 5px 0; }
         button { background: #1890ff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
         button:hover { background: #40a9ff; }
         #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; display: none; }
+        .order-list { margin-top: 20px; }
+        .order-item { background: #fff; border: 1px solid #e8e8e8; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .order-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .order-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .order-no { font-weight: bold; color: #333; font-size: 14px; }
+        .order-status { padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+        .status-paid { background: #52c41a; color: white; }
+        .status-unpaid { background: #faad14; color: white; }
+        .order-info { font-size: 13px; color: #666; }
+        .order-info p { margin: 5px 0; }
+        .order-money { font-size: 18px; color: #f5222d; font-weight: bold; }
+        .refresh-btn { background: #52c41a; margin-left: 10px; }
+        .no-orders { text-align: center; color: #999; padding: 40px; }
+        @media (max-width: 900px) { .container { flex-direction: column; } }
     </style>
 </head>
 <body>
     <h1>API 接口支付示例</h1>
 
-    <h2>接口列表</h2>
+    <div class="container">
+        <div class="left-panel">
+            <h2>接口列表</h2>
 
-    <div class="endpoint">
-        <p><span class="method">POST</span> <code>/api/payment/create</code></p>
-        <p>创建支付订单，返回二维码或支付链接</p>
-        <p>请求参数（JSON）：</p>
-        <pre>{
+            <div class="endpoint">
+                <p><span class="method">POST</span> <code>/api/payment/create</code></p>
+                <p>创建支付订单，返回二维码或支付链接</p>
+                <p>请求参数（JSON）：</p>
+                <pre>{
     "pay_type": "alipay",  // 支付方式：alipay, wxpay, qqpay
     "amount": 0.01,        // 金额（元）
     "name": "商品名称"      // 商品名称
 }</pre>
-    </div>
-
-    <div class="endpoint">
-        <p><span class="method get">GET</span> <code>/api/payment/query?out_trade_no=xxx</code></p>
-        <p>查询订单状态</p>
-    </div>
-
-    <div class="endpoint">
-        <p><span class="method">POST</span> <code>/api/payment/notify</code></p>
-        <p>支付回调通知（由 EPay 服务器调用）</p>
-    </div>
-
-    <div class="test-form">
-        <h3>在线测试</h3>
-        <form id="payForm">
-            <div>
-                <label>支付方式：</label>
-                <select id="payType">
-                    <option value="alipay">支付宝</option>
-                    <option value="wxpay">微信支付</option>
-                    <option value="qqpay">QQ钱包</option>
-                </select>
             </div>
-            <div>
-                <label>商品名称：</label>
-                <input type="text" id="name" value="测试商品">
-            </div>
-            <div>
-                <label>金额（元）：</label>
-                <input type="number" id="amount" value="0.01" step="0.01" min="0.01">
-            </div>
-            <button type="submit">创建支付订单</button>
-        </form>
 
-        <div id="result">
-            <h4>响应结果：</h4>
-            <pre id="resultContent"></pre>
-            <div id="qrcode" style="margin-top: 15px;"></div>
+            <div class="endpoint">
+                <p><span class="method get">GET</span> <code>/api/payment/query?out_trade_no=xxx</code></p>
+                <p>查询订单状态</p>
+            </div>
+
+            <div class="endpoint">
+                <p><span class="method">POST</span> <code>/api/payment/notify</code></p>
+                <p>支付回调通知（由 EPay 服务器调用）</p>
+            </div>
+
+            <div class="test-form">
+                <h3>在线测试</h3>
+                <form id="payForm">
+                    <div>
+                        <label>支付方式：</label>
+                        <select id="payType">
+                            <option value="alipay">支付宝</option>
+                            <option value="wxpay">微信支付</option>
+                            <option value="qqpay">QQ钱包</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>商品名称：</label>
+                        <input type="text" id="name" value="测试商品">
+                    </div>
+                    <div>
+                        <label>金额（元）：</label>
+                        <input type="number" id="amount" value="0.01" step="0.01" min="0.01">
+                    </div>
+                    <button type="submit">创建支付订单</button>
+                </form>
+
+                <div id="result">
+                    <h4>响应结果：</h4>
+                    <pre id="resultContent"></pre>
+                    <div id="qrcode" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <h2>订单列表 <button class="refresh-btn" onclick="loadOrders()">刷新</button></h2>
+            <div id="orderList" class="order-list">
+                <div class="no-orders">暂无订单</div>
+            </div>
         </div>
     </div>
 
     <script>
+        // 加载订单列表
+        async function loadOrders() {
+            try {
+                const resp = await fetch('/api/orders');
+                const result = await resp.json();
+
+                const orderListEl = document.getElementById('orderList');
+
+                if (result.success && result.data && result.data.length > 0) {
+                    orderListEl.innerHTML = result.data.map(order => {
+                        const statusClass = order.status === 1 ? 'status-paid' : 'status-unpaid';
+                        const statusText = order.status === 1 ? '已支付' : '未支付';
+                        const payTypeMap = { alipay: '支付宝', wxpay: '微信', qqpay: 'QQ钱包' };
+                        const createTime = new Date(order.create_time).toLocaleString('zh-CN');
+
+                        return `
+                            <div class="order-item">
+                                <div class="order-header">
+                                    <span class="order-no">${order.out_trade_no}</span>
+                                    <span class="order-status ${statusClass}">${statusText}</span>
+                                </div>
+                                <div class="order-info">
+                                    <p><strong>商品：</strong>${order.name}</p>
+                                    <p><strong>金额：</strong><span class="order-money">¥${order.money.toFixed(2)}</span></p>
+                                    <p><strong>方式：</strong>${payTypeMap[order.pay_type] || order.pay_type}</p>
+                                    <p><strong>时间：</strong>${createTime}</p>
+                                    ${order.pay_url ? `<p><a href="${order.pay_url}" target="_blank">去支付</a></p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    orderListEl.innerHTML = '<div class="no-orders">暂无订单</div>';
+                }
+            } catch (err) {
+                console.error('加载订单失败:', err);
+            }
+        }
+
+        // 页面加载时获取订单列表
+        loadOrders();
+
+        // 每5秒自动刷新订单状态
+        setInterval(loadOrders, 5000);
+
         document.getElementById('payForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -104,6 +177,9 @@
                         qrHtml += '<p>支付链接：<a href="' + result.data.pay_url + '" target="_blank">点击支付</a></p>';
                     }
                     document.getElementById('qrcode').innerHTML = qrHtml;
+
+                    // 刷新订单列表
+                    loadOrders();
                 } else {
                     document.getElementById('qrcode').innerHTML = '';
                 }

@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <title>Form 表单支付示例</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        body { font-family: Arial, sans-serif; max-width: 1100px; margin: 50px auto; padding: 20px; }
+        .container { display: flex; gap: 30px; }
+        .left-panel { flex: 1; }
+        .right-panel { flex: 1; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input, select { width: 100%; padding: 8px; box-sizing: border-box; }
@@ -12,43 +15,110 @@
         button:hover { background: #40a9ff; }
         h1 { color: #333; }
         .methods { margin: 20px 0; }
-        .methods a { display: inline-block; margin-right: 10px; padding: 10px 15px; background: #f0f0f0; text-decoration: none; color: #333; }
+        .methods a { display: inline-block; margin-right: 10px; margin-bottom: 10px; padding: 10px 15px; background: #f0f0f0; text-decoration: none; color: #333; }
         .methods a:hover { background: #e0e0e0; }
+        .order-list { margin-top: 20px; }
+        .order-item { background: #fff; border: 1px solid #e8e8e8; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .order-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .order-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .order-no { font-weight: bold; color: #333; font-size: 14px; }
+        .order-status { padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+        .status-paid { background: #52c41a; color: white; }
+        .status-unpaid { background: #faad14; color: white; }
+        .order-info { font-size: 13px; color: #666; }
+        .order-info p { margin: 5px 0; }
+        .order-money { font-size: 18px; color: #f5222d; font-weight: bold; }
+        .refresh-btn { background: #52c41a; margin-left: 10px; }
+        .no-orders { text-align: center; color: #999; padding: 40px; }
+        @media (max-width: 900px) { .container { flex-direction: column; } }
     </style>
 </head>
 <body>
     <h1>Form 表单支付示例</h1>
 
-    <div class="methods">
-        <h3>选择支付方式：</h3>
-        <a href="/pay/form?type=alipay&money=0.01&name=测试商品">支付宝支付</a>
-        <a href="/pay/form?type=wxpay&money=0.01&name=测试商品">微信支付</a>
-        <a href="/pay/form?type=&money=0.01&name=测试商品">收银台（选择支付方式）</a>
+    <div class="container">
+        <div class="left-panel">
+            <div class="methods">
+                <h3>选择支付方式：</h3>
+                <a href="/pay/form?type=alipay&money=0.01&name=测试商品">支付宝支付</a>
+                <a href="/pay/form?type=wxpay&money=0.01&name=测试商品">微信支付</a>
+                <a href="/pay/form?type=&money=0.01&name=测试商品">收银台（选择支付方式）</a>
+            </div>
+
+            <h3>或者自定义参数：</h3>
+            <form action="/pay/form" method="GET">
+                <div class="form-group">
+                    <label>支付方式</label>
+                    <select name="type">
+                        <option value="">收银台（用户选择）</option>
+                        <option value="alipay">支付宝</option>
+                        <option value="wxpay">微信支付</option>
+                        <option value="qqpay">QQ钱包</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>商品名称</label>
+                    <input type="text" name="name" value="测试商品" required>
+                </div>
+                <div class="form-group">
+                    <label>金额（元）</label>
+                    <input type="number" name="money" value="0.01" step="0.01" min="0.01" required>
+                </div>
+                <button type="submit">发起支付</button>
+            </form>
+
+            <hr style="margin-top: 30px;">
+            <p><a href="/pay/url?type=alipay&money=0.01&name=测试商品">使用 URL 跳转方式支付</a></p>
+        </div>
+
+        <div class="right-panel">
+            <h2>订单列表 <button class="refresh-btn" onclick="loadOrders()">刷新</button></h2>
+            <div id="orderList" class="order-list">
+                <div class="no-orders">暂无订单</div>
+            </div>
+        </div>
     </div>
 
-    <h3>或者自定义参数：</h3>
-    <form action="/pay/form" method="GET">
-        <div class="form-group">
-            <label>支付方式</label>
-            <select name="type">
-                <option value="">收银台（用户选择）</option>
-                <option value="alipay">支付宝</option>
-                <option value="wxpay">微信支付</option>
-                <option value="qqpay">QQ钱包</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>商品名称</label>
-            <input type="text" name="name" value="测试商品" required>
-        </div>
-        <div class="form-group">
-            <label>金额（元）</label>
-            <input type="number" name="money" value="0.01" step="0.01" min="0.01" required>
-        </div>
-        <button type="submit">发起支付</button>
-    </form>
+    <script>
+        async function loadOrders() {
+            try {
+                const resp = await fetch('/api/orders');
+                const result = await resp.json();
 
-    <hr style="margin-top: 30px;">
-    <p><a href="/pay/url?type=alipay&money=0.01&name=测试商品">使用 URL 跳转方式支付</a></p>
+                const orderListEl = document.getElementById('orderList');
+
+                if (result.success && result.data && result.data.length > 0) {
+                    orderListEl.innerHTML = result.data.map(order => {
+                        const statusClass = order.status === 1 ? 'status-paid' : 'status-unpaid';
+                        const statusText = order.status === 1 ? '已支付' : '未支付';
+                        const payTypeMap = { alipay: '支付宝', wxpay: '微信', qqpay: 'QQ钱包', '': '收银台' };
+                        const createTime = new Date(order.create_time).toLocaleString('zh-CN');
+
+                        return `
+                            <div class="order-item">
+                                <div class="order-header">
+                                    <span class="order-no">${order.out_trade_no}</span>
+                                    <span class="order-status ${statusClass}">${statusText}</span>
+                                </div>
+                                <div class="order-info">
+                                    <p><strong>商品：</strong>${order.name}</p>
+                                    <p><strong>金额：</strong><span class="order-money">¥${order.money.toFixed(2)}</span></p>
+                                    <p><strong>方式：</strong>${payTypeMap[order.pay_type] || order.pay_type}</p>
+                                    <p><strong>时间：</strong>${createTime}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    orderListEl.innerHTML = '<div class="no-orders">暂无订单</div>';
+                }
+            } catch (err) {
+                console.error('加载订单失败:', err);
+            }
+        }
+
+        loadOrders();
+        setInterval(loadOrders, 5000);
+    </script>
 </body>
 </html>
