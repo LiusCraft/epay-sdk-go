@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>API 接口支付示例</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        h1 { color: #333; }
+        .endpoint { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .method { display: inline-block; padding: 3px 8px; background: #1890ff; color: white; border-radius: 3px; font-size: 12px; }
+        .method.get { background: #52c41a; }
+        code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
+        pre { background: #f5f5f5; padding: 15px; overflow-x: auto; }
+        .test-form { margin-top: 30px; padding: 20px; background: #fafafa; border-radius: 5px; }
+        input, select { padding: 8px; margin: 5px 0; }
+        button { background: #1890ff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #40a9ff; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; display: none; }
+    </style>
+</head>
+<body>
+    <h1>API 接口支付示例</h1>
+
+    <h2>接口列表</h2>
+
+    <div class="endpoint">
+        <p><span class="method">POST</span> <code>/api/payment/create</code></p>
+        <p>创建支付订单，返回二维码或支付链接</p>
+        <p>请求参数（JSON）：</p>
+        <pre>{
+    "pay_type": "alipay",  // 支付方式：alipay, wxpay, qqpay
+    "amount": 0.01,        // 金额（元）
+    "name": "商品名称"      // 商品名称
+}</pre>
+    </div>
+
+    <div class="endpoint">
+        <p><span class="method get">GET</span> <code>/api/payment/query?out_trade_no=xxx</code></p>
+        <p>查询订单状态</p>
+    </div>
+
+    <div class="endpoint">
+        <p><span class="method">POST</span> <code>/api/payment/notify</code></p>
+        <p>支付回调通知（由 EPay 服务器调用）</p>
+    </div>
+
+    <div class="test-form">
+        <h3>在线测试</h3>
+        <form id="payForm">
+            <div>
+                <label>支付方式：</label>
+                <select id="payType">
+                    <option value="alipay">支付宝</option>
+                    <option value="wxpay">微信支付</option>
+                    <option value="qqpay">QQ钱包</option>
+                </select>
+            </div>
+            <div>
+                <label>商品名称：</label>
+                <input type="text" id="name" value="测试商品">
+            </div>
+            <div>
+                <label>金额（元）：</label>
+                <input type="number" id="amount" value="0.01" step="0.01" min="0.01">
+            </div>
+            <button type="submit">创建支付订单</button>
+        </form>
+
+        <div id="result">
+            <h4>响应结果：</h4>
+            <pre id="resultContent"></pre>
+            <div id="qrcode" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('payForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const data = {
+                pay_type: document.getElementById('payType').value,
+                name: document.getElementById('name').value,
+                amount: parseFloat(document.getElementById('amount').value)
+            };
+
+            try {
+                const resp = await fetch('/api/payment/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await resp.json();
+
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('resultContent').textContent = JSON.stringify(result, null, 2);
+
+                // 显示二维码链接
+                if (result.success && result.data) {
+                    let qrHtml = '';
+                    if (result.data.qr_code) {
+                        qrHtml += '<p>二维码链接：<a href="' + result.data.qr_code + '" target="_blank">' + result.data.qr_code + '</a></p>';
+                    }
+                    if (result.data.pay_url) {
+                        qrHtml += '<p>支付链接：<a href="' + result.data.pay_url + '" target="_blank">点击支付</a></p>';
+                    }
+                    document.getElementById('qrcode').innerHTML = qrHtml;
+                } else {
+                    document.getElementById('qrcode').innerHTML = '';
+                }
+            } catch (err) {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('resultContent').textContent = 'Error: ' + err.message;
+            }
+        });
+    </script>
+</body>
+</html>

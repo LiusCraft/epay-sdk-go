@@ -3,6 +3,7 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,9 @@ import (
 
 	epay "github.com/liuscraft/epay-sdk-go"
 )
+
+//go:embed templates/*.html
+var templatesFS embed.FS
 
 var client *epay.Client
 
@@ -46,63 +50,18 @@ func init() {
 }
 
 // indexHandler 首页 - 显示支付表单
+// HTML 文件已通过 embed 嵌入到二进制文件中，无需外部依赖
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	html := `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Form 表单支付示例</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { background: #1890ff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
-        button:hover { background: #40a9ff; }
-        h1 { color: #333; }
-        .methods { margin: 20px 0; }
-        .methods a { display: inline-block; margin-right: 10px; padding: 10px 15px; background: #f0f0f0; text-decoration: none; color: #333; }
-        .methods a:hover { background: #e0e0e0; }
-    </style>
-</head>
-<body>
-    <h1>Form 表单支付示例</h1>
+	// 从嵌入的文件系统读取 HTML
+	htmlContent, err := templatesFS.ReadFile("templates/index.html")
+	if err != nil {
+		http.Error(w, "无法加载页面", http.StatusInternalServerError)
+		log.Printf("读取 index.html 失败: %v", err)
+		return
+	}
 
-    <div class="methods">
-        <h3>选择支付方式：</h3>
-        <a href="/pay/form?type=alipay&money=0.01&name=测试商品">支付宝支付</a>
-        <a href="/pay/form?type=wxpay&money=0.01&name=测试商品">微信支付</a>
-        <a href="/pay/form?type=&money=0.01&name=测试商品">收银台（选择支付方式）</a>
-    </div>
-
-    <h3>或者自定义参数：</h3>
-    <form action="/pay/form" method="GET">
-        <div class="form-group">
-            <label>支付方式</label>
-            <select name="type">
-                <option value="">收银台（用户选择）</option>
-                <option value="alipay">支付宝</option>
-                <option value="wxpay">微信支付</option>
-                <option value="qqpay">QQ钱包</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>商品名称</label>
-            <input type="text" name="name" value="测试商品" required>
-        </div>
-        <div class="form-group">
-            <label>金额（元）</label>
-            <input type="number" name="money" value="0.01" step="0.01" min="0.01" required>
-        </div>
-        <button type="submit">发起支付</button>
-    </form>
-
-    <hr style="margin-top: 30px;">
-    <p><a href="/pay/url?type=alipay&money=0.01&name=测试商品">使用 URL 跳转方式支付</a></p>
-</body>
-</html>`
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	w.Write(htmlContent)
 }
 
 // formPaymentHandler 生成 HTML 表单跳转支付
@@ -219,33 +178,21 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // returnHandler 支付成功跳转页面
+// HTML 模板已通过 embed 嵌入，使用 %s 占位符，分别对应订单号和金额
 func returnHandler(w http.ResponseWriter, r *http.Request) {
 	// 同步跳转，可以验证签名
 	params := epay.ParseNotifyParams(r)
 
-	html := `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>支付结果</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-        .success { color: #52c41a; font-size: 24px; }
-        .info { margin: 20px 0; color: #666; }
-    </style>
-</head>
-<body>
-    <h1 class="success">支付完成</h1>
-    <div class="info">
-        <p>订单号: %s</p>
-        <p>支付金额: %s 元</p>
-    </div>
-    <p><a href="/">返回首页</a></p>
-</body>
-</html>`
+	// 从嵌入的文件系统读取 HTML 模板
+	htmlTemplate, err := templatesFS.ReadFile("templates/return.html")
+	if err != nil {
+		http.Error(w, "无法加载页面", http.StatusInternalServerError)
+		log.Printf("读取 return.html 失败: %v", err)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, html, params["out_trade_no"], params["money"])
+	fmt.Fprintf(w, string(htmlTemplate), params["out_trade_no"], params["money"])
 }
 
 func main() {

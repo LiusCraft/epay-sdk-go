@@ -119,9 +119,9 @@ func TestSigner_Verify(t *testing.T) {
 	sign := signer.Sign(params)
 
 	tests := []struct {
-		name   string
-		sign   string
-		want   bool
+		name string
+		sign string
+		want bool
 	}{
 		{
 			name: "valid sign",
