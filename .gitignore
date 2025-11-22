@@ -12,6 +12,11 @@ env.sh
 *.test
 *.out
 
+# 示例程序编译产物
+examples/*/quick
+examples/*/form
+examples/*/api
+
 # IDE
 .idea/
 .vscode/
